@@ -322,9 +322,9 @@ ModelIVM<-function(PropIVM,VectTime_between_cycles,Number_of_cycle,t_begin_Camp,
                    mu_h,delta_h,bar_beta_h,beta_h,nu_hm,nu_hf,gamma_h,theta,beta_m,Wedge_m,mu_m,
                    ah_max,dah,Nah,tmax,Gap,dt,time,Ntime,p_f, IVM_Pregnancy,dtau,tau_max,Vtau,Ntau,
                    dsigma,sigma_max,Vsigma,Nsigma,strategy,IVM_field_dependancy,t_begin_sum){
+  Wedge_h=13250  #30750, recrutment rate Bobo dioulasso in 2012
   q=0.48 #proportion of human male
   k_h=5.5*10^(-4)#1.469e-2;
-  Wedge_h=13250  #recrutment rate Bobo dioulasso in 2012
   
   ParamIvmFormulation=ModelEtau50Alpha(strategy)
   p_vec = P_tau.fun(Vtau, tau50=ParamIvmFormulation$tau50, alpha=ParamIvmFormulation$alpha,
@@ -438,7 +438,7 @@ ModelIVM<-function(PropIVM,VectTime_between_cycles,Number_of_cycle,t_begin_Camp,
       lam_hS[tau] =theta[t]*sum(mSh_ivm[,tau,t]+fSh_ivm[,tau,t]+mRh_ivm[,tau,t]+fRh_ivm[,tau,t])/Nh[t]; 
     }
     
-    Sm[t+1] = (Wedge_m[t] + Sm[t]/dt )/(1/dt  + mu_m  + lam_h + sum(lam_hI[] + lam_hS[]));
+    Sm[t+1] = (Wedge_m + Sm[t]/dt )/(1/dt  + mu_m  + lam_h + sum(lam_hI[] + lam_hS[]));
     
     sigma=1
     Im[t+1,sigma]=(Im[t,sigma]/dt + lam_h*Sm[t]/dsigma)/
@@ -801,7 +801,7 @@ ModelIVM<-function(PropIVM,VectTime_between_cycles,Number_of_cycle,t_begin_Camp,
   Name_Prev_mos <- function(Prev_mos10) {
     ifelse(Prev_mos10 == 1, "10", "5")
   }
-  # Theta, beta_h(a) et Wedge_M: HBR, infectiosité humaine et recrutement des moustiques
+  #Theta, beta_h(a) et Wedge_M: HBR, infectiosité humaine et recrutement des moustiques
   p_theta.fun = function(time, theta_0, q_theta, T_theta, t_begin_Higly_Seas, Gap) {
     ta = t_begin_Higly_Seas
     tb = ta + T_theta
@@ -815,68 +815,67 @@ ModelIVM<-function(PropIVM,VectTime_between_cycles,Number_of_cycle,t_begin_Camp,
     return(theta)
   }
   
-  q_theta = 1/4
-  theta_0 = 0.5
-  T_theta = 120 # durée de la haute saison de transmission
-  t_begin_Higly_Seas = 250
-  ta = t_begin_Higly_Seas
-  tb = ta + T_theta
-  q_Wedge=0.1
+  q_theta=1/4; theta_0=0.5
+  T_theta=120 #dure' de la haute saison de transmission
+  t_begin_Higly_Seas=250
   
-  Model_theta = function(Saisonality, Prev_mos10) {
-    
+  Model_theta = function(Saisonality, Prev_mos10){
     if (Saisonality == 1) {
       theta = p_theta.fun(time, theta_0, q_theta, T_theta, t_begin_Higly_Seas, Gap)
       
-      # Calcul de Wedge_m avec saisonnalité
-      Wedge_m0 <<- 1.825 * 10^6
-      Wedge_m <<- ifelse(time < ta - Gap, Wedge_m0,
-                         ifelse(time < ta, Wedge_m0 + ((time - (ta - Gap)) / Gap) * (q_Wedge * Wedge_m0),
-                                ifelse(time <= tb, (1 + q_Wedge) * Wedge_m0,
-                                       ifelse(time <= tb + Gap, (1 + q_Wedge) * Wedge_m0 - ((time - tb) / Gap) * (q_Wedge * Wedge_m0),
-                                              Wedge_m0))))
-      
-      # Paramètres selon prévalence des moustiques
-      if (Prev_mos10) {
-        beta_m <<- 0.0416 * (Vsigma > EIP)
-        alpha_1 <<- 0.122       # 0.071[0.023; 0.175]
-        alpha_2 <<- 0.17 
-      } else { # Prev_mos5_percent
-        beta_m <<- 0.0416 * (Vsigma > EIP)
-        alpha_1 <<- 0.122       # 0.071[0.023; 0.175]
-        alpha_2 <<- 0.17 
+      params_Mos_Prev =function(Prev_mos10) { #Prevealence des moustiques infectieux 5, 10%
+        if (Prev_mos10) {
+          Wedge_m <<- 1.33 * 10^6   
+          beta_m <<- 0.058*(Vsigma>EIP)
+          alpha_1 <<- 0.135       # 0.071[0.023; 0.175]
+          alpha_2 <<- 0.15         # 0.302[0.16; 0.475]
+        } else { #Prev_mos5_percent
+          Wedge_m <<- 1.33 * 10^6   
+          beta_m <<- 0.058*(Vsigma>EIP)
+          alpha_1 <<- 0.135       # 0.071[0.023; 0.175]
+          alpha_2 <<- 0.15  
+        }
+        
+        beta_h <<- rep(NA, Nah)
+        
+        # Define the function G(a)
+        G <<- function(a) {
+          return(22.7 * a * exp(-0.0934 * a))
+        }
+        # Compute beta_h for each age in Vah
+        beta_h <<- alpha_1 * (G(Vah) ^ alpha_2)  
+        bar_beta_h <<- 0.8 * beta_h
       }
-      
-    } else { # Pas de saisonnalité
+    } else {
       theta = rep(theta_0, Ntime)
-      
-      # Wedge_m constant
-      Wedge_m0 <<- 1.33 * 10^6
-      Wedge_m <<- rep(Wedge_m0, Ntime)
-      
-      # Paramètres selon prévalence des moustiques
-      if (Prev_mos10) {
-        beta_m <<- 0.0416 * (Vsigma > EIP)
-        alpha_1 <<- 0.122       # 0.071[0.023; 0.175]
-        alpha_2 <<- 0.17 
-      } else { # Prev_mos5_percent
-        beta_m <<- 0.063 * (Vsigma > EIP)
-        alpha_1 <<- 0.071        # 0.071[0.023; 0.175]
-        alpha_2 <<- 0.15 
+      params_Mos_Prev =function(Prev_mos10) { #Prevealence des moustiques infectieux 5, 10%
+        if (Prev_mos10) {
+          beta_m  <<-  0.0416*(Vsigma>EIP)
+          Wedge_m <<- 1.33 * 10^6   
+          alpha_1 <<- 0.122       # 0.071[0.023; 0.175]
+          alpha_2 <<- 0.17         # 0.302[0.16; 0.475]
+        } else { #Prev_mos5_percent
+          beta_m <<-  0.063*(Vsigma>EIP)
+          Wedge_m <<- 1.33 * 10^6    
+          alpha_1 <<- 0.071        # 0.071[0.023; 0.175]
+          alpha_2 <<- 0.15  
+        }
+        beta_h <<- rep(NA, Nah)
+        
+        # Define the function G(a)
+        G <<- function(a) {
+          return(22.7 * a * exp(-0.0934 * a))
+        }
+        # Compute beta_h for each age in Vah
+        beta_h <<- alpha_1 * (G(Vah) ^ alpha_2)  
+        bar_beta_h <<- 0.8 * beta_h
+        
+        #plot(Vah,G(Vah))
+        #plot(Vah,bar_beta_h)
       }
+      
     }
-    
-    # Calcul de beta_h (commun aux deux cas)
-    beta_h <<- rep(NA, Nah)
-    
-    # Define the function G(a)
-    G <<- function(a) {
-      return(22.7 * a * exp(-0.0934 * a))
-    }
-    
-    # Compute beta_h for each age in Vah
-    beta_h <<- alpha_1 * (G(Vah) ^ alpha_2)
-    bar_beta_h <<- 0.8 * beta_h
+    params_Mos_Prev(Prev_mos10)
     
     return(theta)
   }
@@ -907,7 +906,7 @@ GainPrev_array_LAIF_Per=array(0, dim = c(3,length(VectPropIVM),length(VectNumber
 #Prevalence total d'infections
 VectNumber_of_cycle=c(1,2,3,4)
 GainPrev_Tot_LAIF_Seas=array(0, dim = c(3,length(VectPropIVM),length(VectNumber_of_cycle),
-                                          length(Vect_t_begin_Camp)))
+                                        length(Vect_t_begin_Camp)))
 GainPrev_Tot_oral_Seas=array(0, dim = c(3,length(VectPropIVM),length(Vect_t_begin_Camp)))
 
 Nbrun=0
@@ -992,7 +991,7 @@ Nbrun=0
     strategy=0;NbCycle=4
     ModelLongLasting06=list()
     Number_of_cycle=NbCycle;VectTime_between_cycles=c(60,60,60)
-   
+    
     for (Number_of_cycle in 1:NbCycle) {
       ModelOutput = ModelIVM(PropIVM,VectTime_between_cycles,Number_of_cycle,t_begin_Camp,Dur_cycle,
                              mu_h,delta_h,bar_beta_h,beta_h,nu_hm,nu_hf,gamma_h,theta,beta_m,Wedge_m,mu_m,
@@ -1070,26 +1069,26 @@ ls()
   
   
   for (p in 1:length(Vect_t_begin_Camp)) {
-      t_begin_Camp= Vect_t_begin_Camp[p]
-      
-      t_begin_sum= Vect_t_begin_Camp[p]
-      
-      #Without IVM
-      strategy=0; PropIVM=0
-      VectTime_between_cycles=c(0,0,0)
-      Number_of_cycle=1
-      
-      OutPut = ModelIVM(PropIVM,VectTime_between_cycles,Number_of_cycle,t_begin_Camp,Dur_cycle,
-                        mu_h,delta_h,bar_beta_h,beta_h,nu_hm,nu_hf,gamma_h,theta,beta_m,Wedge_m,mu_m,
-                        ah_max,dah,Nah,tmax,Gap,dt,time,Ntime,p_f, IVM_Pregnancy,dtau,tau_max,Vtau,Ntau,
-                        dsigma,sigma_max,Vsigma,Nsigma,strategy,IVM_field_dependancy,t_begin_sum)
-      
-      ModelPrevCum= OutPut
-      DeltaOptimInit_Seas=sum(ModelPrevCum$Ih_Tot[ModelPrevCum$IndexOptim]) 
-      DeltaOptim_Tot_Init_Seas=ModelPrevCum$Delta_Tot
-      
-      for (j in 1:length(VectPropIVM)) {
-        PropIVM = VectPropIVM[j]
+    t_begin_Camp= Vect_t_begin_Camp[p]
+    
+    t_begin_sum= Vect_t_begin_Camp[p]
+    
+    #Without IVM
+    strategy=0; PropIVM=0
+    VectTime_between_cycles=c(0,0,0)
+    Number_of_cycle=1
+    
+    OutPut = ModelIVM(PropIVM,VectTime_between_cycles,Number_of_cycle,t_begin_Camp,Dur_cycle,
+                      mu_h,delta_h,bar_beta_h,beta_h,nu_hm,nu_hf,gamma_h,theta,beta_m,Wedge_m,mu_m,
+                      ah_max,dah,Nah,tmax,Gap,dt,time,Ntime,p_f, IVM_Pregnancy,dtau,tau_max,Vtau,Ntau,
+                      dsigma,sigma_max,Vsigma,Nsigma,strategy,IVM_field_dependancy,t_begin_sum)
+    
+    ModelPrevCum= OutPut
+    DeltaOptimInit_Seas=sum(ModelPrevCum$Ih_Tot[ModelPrevCum$IndexOptim]) 
+    DeltaOptim_Tot_Init_Seas=ModelPrevCum$Delta_Tot
+    
+    for (j in 1:length(VectPropIVM)) {
+      PropIVM = VectPropIVM[j]
       
       print(paste0("Time begin cycle=",t_begin_Camp))
       print(paste0("PropIVM=",PropIVM))
@@ -1138,7 +1137,7 @@ ls()
         ModelLongLasting1[[Number_of_cycle]]=ModelOutput
         GainPrev_array_LAIF_Seas[2,j,Number_of_cycle,p]=1-(ModelLongLasting1[[Number_of_cycle]]$DeltaOptim/DeltaOptimInit_Seas)
         GainPrev_Tot_LAIF_Seas[2,j,Number_of_cycle,p]= 1-(ModelLongLasting1[[Number_of_cycle]]$Delta_Tot/DeltaOptim_Tot_Init_Seas)
-        }
+      }
       
       #On tourne le modèle pour Bohemia
       strategy=2; Number_of_cycle=3
@@ -1443,11 +1442,11 @@ run_simulation = function(type) {
         print("Simulation mdc-STM-001-0.6-vk5")
         ModelLongLasting06 = list()
         
-          strategy = 0; NbCycle = 4
-          VectTime_between_cycles=c(60,60,60)
-          print("LongLasting0.6")
-          print(VectTime_between_cycles)
-          VectTime_between_cycles_LAIF = VectTime_between_cycles
+        strategy = 0; NbCycle = 4
+        VectTime_between_cycles=c(60,60,60)
+        print("LongLasting0.6")
+        print(VectTime_between_cycles)
+        VectTime_between_cycles_LAIF = VectTime_between_cycles
         # Simulation avec seasonalité
         Saisonality = 1
         theta = Model_theta(Saisonality, Prev_mos10)
@@ -1740,4 +1739,3 @@ reload_and_plot("IVM_Seas_laif.RData")
 reload_and_plot("IVM_Seas_oral.RData")
 
 sink()
-
