@@ -1,5 +1,5 @@
 #setwd("/Users/ramsesdjidjou-demasse/Documents/CodeFranck/CodeFranckIvmMdaGender/LastVersion")
-setwd("C:/Users/franc/Desktop/PowerPoint PhD/R studio/Project IVM5")
+setwd("C:/Users/franck/Desktop/PhD/R studio/Project IVM5")
 #setwd("C:/Users/franc/Desktop/PowerPoint PhD/R studio/New folder (2)")
 rm(list = ls())#remet à jour tout l'espace de travail
 
@@ -2049,5 +2049,6 @@ reload_and_plot = function(rdata_filename) {
   plot_results(simulation_data$results, type)
 }
 reload_and_plot("IVM_Seas3mois_laif.RData")
+
 
 sink()
